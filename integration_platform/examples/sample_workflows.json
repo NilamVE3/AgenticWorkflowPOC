@@ -1,0 +1,381 @@
+{
+  "sample_workflows": [
+    {
+      "name": "Slack Notification on API Event",
+      "description": "Send a Slack notification when an external API event occurs",
+      "trigger": {
+        "type": "webhook",
+        "config": {
+          "webhook_path": "api-event",
+          "secret": "webhook-secret"
+        }
+      },
+      "steps": [
+        {
+          "id": "process_event",
+          "name": "Process API Event",
+          "type": "action",
+          "config": {
+            "tool_id": "http_get_request",
+            "parameters": {
+              "endpoint": "/events/{{trigger_data.event_id}}",
+              "headers": {
+                "Authorization": "Bearer {{credentials.api_token}}"
+              }
+            }
+          }
+        },
+        {
+          "id": "send_notification",
+          "name": "Send Slack Notification",
+          "type": "action",
+          "config": {
+            "tool_id": "slack_send_message",
+            "parameters": {
+              "channel": "#alerts",
+              "message": "API Event: {{step_results.process_event.data.type}} - {{step_results.process_event.data.message}}"
+            }
+          },
+          "depends_on": ["process_event"]
+        }
+      ]
+    },
+    {
+      "name": "Daily Report Generation",
+      "description": "Generate and email daily reports",
+      "trigger": {
+        "type": "scheduled",
+        "config": {
+          "cron_expression": "0 9 * * *",
+          "timezone": "UTC"
+        }
+      },
+      "steps": [
+        {
+          "id": "fetch_data",
+          "name": "Fetch Daily Data",
+          "type": "action",
+          "config": {
+            "tool_id": "http_get_request",
+            "parameters": {
+              "endpoint": "/reports/daily",
+              "params": {
+                "date": "{{trigger_data.scheduled_time}}"
+              }
+            }
+          }
+        },
+        {
+          "id": "generate_report",
+          "name": "Generate Report",
+          "type": "action",
+          "config": {
+            "tool_id": "http_post_request",
+            "parameters": {
+              "endpoint": "/reports/generate",
+              "body": {
+                "data": "{{step_results.fetch_data.data}}",
+                "format": "pdf"
+              }
+            }
+          },
+          "depends_on": ["fetch_data"]
+        },
+        {
+          "id": "send_email",
+          "name": "Email Report",
+          "type": "action",
+          "config": {
+            "tool_id": "email_send",
+            "parameters": {
+              "to": "team@company.com",
+              "subject": "Daily Report - {{trigger_data.scheduled_time}}",
+              "body": "Please find attached daily report.",
+              "attachments": [
+                "{{step_results.generate_report.data.file_url}}"
+              ]
+            }
+          },
+          "depends_on": ["generate_report"]
+        }
+      ]
+    },
+    {
+      "name": "Customer Onboarding",
+      "description": "Automated customer onboarding workflow",
+      "trigger": {
+        "type": "webhook",
+        "config": {
+          "webhook_path": "customer-signup"
+        }
+      },
+      "steps": [
+        {
+          "id": "create_account",
+          "name": "Create Customer Account",
+          "type": "action",
+          "config": {
+            "tool_id": "crm_create_customer",
+            "parameters": {
+              "name": "{{trigger_data.customer_name}}",
+              "email": "{{trigger_data.customer_email}}",
+              "plan": "{{trigger_data.plan}}"
+            }
+          }
+        },
+        {
+          "id": "send_welcome",
+          "name": "Send Welcome Email",
+          "type": "action",
+          "config": {
+            "tool_id": "email_send_template",
+            "parameters": {
+              "to": "{{trigger_data.customer_email}}",
+              "template": "welcome",
+              "variables": {
+                "customer_name": "{{trigger_data.customer_name}}",
+                "customer_id": "{{step_results.create_account.data.customer_id}}"
+              }
+            }
+          },
+          "depends_on": ["create_account"]
+        },
+        {
+          "id": "setup_billing",
+          "name": "Setup Billing",
+          "type": "action",
+          "config": {
+            "tool_id": "billing_create_subscription",
+            "parameters": {
+              "customer_id": "{{step_results.create_account.data.customer_id}}",
+              "plan": "{{trigger_data.plan}}",
+              "trial_days": 14
+            }
+          },
+          "depends_on": ["create_account"]
+        },
+        {
+          "id": "notify_team",
+          "name": "Notify Sales Team",
+          "type": "action",
+          "config": {
+            "tool_id": "slack_send_message",
+            "parameters": {
+              "channel": "#sales",
+              "message": "New customer signed up: {{trigger_data.customer_name}} ({{trigger_data.plan}} plan)"
+            }
+          },
+          "depends_on": ["create_account", "setup_billing"]
+        }
+      ]
+    },
+    {
+      "name": "Error Monitoring and Alerting",
+      "description": "Monitor application errors and send alerts",
+      "trigger": {
+        "type": "webhook",
+        "config": {
+          "webhook_path": "error-alert"
+        }
+      },
+      "steps": [
+        {
+          "id": "check_severity",
+          "name": "Check Error Severity",
+          "type": "condition",
+          "config": {
+            "condition": "{{trigger_data.severity}} >= 4"
+          }
+        },
+        {
+          "id": "create_ticket",
+          "name": "Create Support Ticket",
+          "type": "action",
+          "config": {
+            "tool_id": "helpdesk_create_ticket",
+            "parameters": {
+              "title": "High Severity Error: {{trigger_data.error_type}}",
+              "description": "{{trigger_data.message}}",
+              "priority": "high",
+              "assignee": "on-call-team"
+            }
+          },
+          "depends_on": ["check_severity"]
+        },
+        {
+          "id": "page_oncall",
+          "name": "Page On-Call Engineer",
+          "type": "action",
+          "config": {
+            "tool_id": "pagerduty_trigger_incident",
+            "parameters": {
+              "title": "Critical Error Detected",
+              "details": "{{trigger_data.message}}",
+              "severity": "critical"
+            }
+          },
+          "depends_on": ["check_severity"]
+        },
+        {
+          "id": "log_error",
+          "name": "Log Error",
+          "type": "action",
+          "config": {
+            "tool_id": "logging_create_entry",
+            "parameters": {
+              "level": "error",
+              "message": "{{trigger_data.message}}",
+              "context": {
+                "error_type": "{{trigger_data.error_type}}",
+                "severity": "{{trigger_data.severity}}",
+                "timestamp": "{{trigger_data.timestamp}}"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Social Media Post Scheduling",
+      "description": "Schedule and post content to social media",
+      "trigger": {
+        "type": "scheduled",
+        "config": {
+          "cron_expression": "0 */2 * * *",
+          "timezone": "UTC"
+        }
+      },
+      "steps": [
+        {
+          "id": "get_scheduled_posts",
+          "name": "Get Scheduled Posts",
+          "type": "action",
+          "config": {
+            "tool_id": "database_query",
+            "parameters": {
+              "query": "SELECT * FROM scheduled_posts WHERE scheduled_time <= NOW() AND status = 'pending'",
+              "limit": 10
+            }
+          }
+        },
+        {
+          "id": "post_to_twitter",
+          "name": "Post to Twitter",
+          "type": "action",
+          "config": {
+            "tool_id": "twitter_post_tweet",
+            "parameters": {
+              "text": "{{post.content}}",
+              "media_urls": "{{post.media_urls}}"
+            }
+          },
+          "depends_on": ["get_scheduled_posts"],
+          "loop": {
+            "type": "for_each",
+            "items": "{{step_results.get_scheduled_posts.data}}",
+            "variable": "post"
+          }
+        },
+        {
+          "id": "update_status",
+          "name": "Update Post Status",
+          "type": "action",
+          "config": {
+            "tool_id": "database_update",
+            "parameters": {
+              "table": "scheduled_posts",
+              "where": {"id": "{{post.id}}"},
+              "data": {"status": "posted", "posted_at": "NOW()"}
+            }
+          },
+          "depends_on": ["post_to_twitter"],
+          "loop": {
+            "type": "for_each",
+            "items": "{{step_results.get_scheduled_posts.data}}",
+            "variable": "post"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Data Backup and Verification",
+      "description": "Automated data backup with verification",
+      "trigger": {
+        "type": "scheduled",
+        "config": {
+          "cron_expression": "0 2 * * *",
+          "timezone": "UTC"
+        }
+      },
+      "steps": [
+        {
+          "id": "create_backup",
+          "name": "Create Database Backup",
+          "type": "action",
+          "config": {
+            "tool_id": "database_backup",
+            "parameters": {
+              "database": "{{credentials.database_name}}",
+              "compression": true,
+              "encryption": true
+            }
+          }
+        },
+        {
+          "id": "upload_to_storage",
+          "name": "Upload to Cloud Storage",
+          "type": "action",
+          "config": {
+            "tool_id": "s3_upload_file",
+            "parameters": {
+              "file_path": "{{step_results.create_account.data.backup_file}}",
+              "bucket": "backups",
+              "key": "database-backups/{{trigger_data.scheduled_time}}.sql.gz"
+            }
+          },
+          "depends_on": ["create_backup"]
+        },
+        {
+          "id": "verify_backup",
+          "name": "Verify Backup Integrity",
+          "type": "action",
+          "config": {
+            "tool_id": "backup_verify",
+            "parameters": {
+              "backup_file": "{{step_results.upload_to_storage.data.url}}",
+              "checksum_algorithm": "sha256"
+            }
+          },
+          "depends_on": ["upload_to_storage"]
+        },
+        {
+          "id": "cleanup_old_backups",
+          "name": "Cleanup Old Backups",
+          "type": "action",
+          "config": {
+            "tool_id": "s3_delete_old_files",
+            "parameters": {
+              "bucket": "backups",
+              "prefix": "database-backups/",
+              "older_than_days": 30
+            }
+          },
+          "depends_on": ["verify_backup"]
+        },
+        {
+          "id": "notify_success",
+          "name": "Notify Backup Success",
+          "type": "action",
+          "config": {
+            "tool_id": "slack_send_message",
+            "parameters": {
+              "channel": "#devops",
+              "message": "✅ Database backup completed successfully. Size: {{step_results.create_account.data.backup_size}}MB"
+            }
+          },
+          "depends_on": ["verify_backup", "cleanup_old_backups"]
+        }
+      ]
+    }
+  ]
+}

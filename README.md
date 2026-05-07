@@ -1,6 +1,6 @@
-# Agent-Driven Execution POC
+# Integration Platform
 
-A comprehensive Flask-based proof-of-concept for agent-driven execution with real-time tools and connections, inspired by platforms like Replit's 100+ real-time connections.
+A scalable, production-ready integration platform similar to Zapier that supports 1000+ connectors and agentic workflows.
 
 ## Features
 
@@ -30,6 +30,11 @@ A comprehensive Flask-based proof-of-concept for agent-driven execution with rea
 
 ## Quick Start
 
+### Prerequisites
+- Python 3.9+
+- Redis (for task queues and caching)
+- PostgreSQL (for persistent storage)
+
 ### Installation
 ```bash
 # Clone or navigate to the project directory
@@ -40,24 +45,18 @@ pip install -r requirements.txt
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your API credentials
-```
-
-### Setting Up Integrations
-```bash
-# Run the setup wizard for OAuth integrations
-python setup_integrations.py
-
-# Test your integrations
-python test_integrations.py
+# Edit .env with your configuration
 ```
 
 ### Running the Application
 ```bash
-python app.py
+cd integration_platform
+python main.py
 ```
 
-The application will start on `http://localhost:5000`
+The API will be available at `http://localhost:8000`
+- API Documentation: `http://localhost:8000/docs`
+- Health Check: `http://localhost:8000/health`
 
 ## Architecture
 
